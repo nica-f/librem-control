@@ -33,12 +33,19 @@
 #define CPU_PL1_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_0_power_limit_uw"
 #define CPU_PL2_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_1_power_limit_uw"
 
+typedef struct {
+	GtkWidget *window;
+	GtkApplication *gapp;
+	GtkWidget *stack;
+	GtkWidget *stack_sb;
+} lcontrol_app_t ;
 
-static GtkWidget *window = NULL;
-static GtkApplication *gapp;
+static lcontrol_app_t lcontrol_app;
 
 static GtkWidget *bat_start_slider;
 static GtkWidget *bat_end_slider;
+
+static gboolean is_root = false;
 
 static void print_me (GtkWidget *widget, gpointer data)
 {
@@ -86,26 +93,38 @@ static void close_window (void)
 {
     // clean up and quit
     // g_application_quit(gapp);
-    gtk_application_remove_window(gapp, GTK_WINDOW(window));
+    gtk_application_remove_window(lcontrol_app.gapp, GTK_WINDOW(lcontrol_app.window));
 }
 
 void create_main_window (GtkWidget *appwindow)
 {
     GtkWidget *box;
-    GtkWidget *w;
+    GtkWidget *w, *w2;
 
-    window = appwindow;
+    lcontrol_app.window = appwindow;
 
-    gtk_window_set_title (GTK_WINDOW (window), "GApp Test");
+    gtk_window_set_title (GTK_WINDOW (lcontrol_app.window), "GApp Test");
 
-    g_signal_connect (window, "destroy",
+    g_signal_connect (lcontrol_app.window, "destroy",
         G_CALLBACK (close_window), NULL);
 
-    // box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_window_set_child (GTK_WINDOW (lcontrol_app.window), box);
+
+	lcontrol_app.stack_sb=gtk_stack_sidebar_new();
+	gtk_box_append(GTK_BOX(box), lcontrol_app.stack_sb);
+
+	lcontrol_app.stack=gtk_stack_new();
+	gtk_box_append(GTK_BOX(box), lcontrol_app.stack);
+
+	gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(lcontrol_app.stack_sb), GTK_STACK(lcontrol_app.stack));
+
     box = gtk_grid_new();
     gtk_grid_set_row_spacing(GTK_GRID(box), 1);
-    gtk_window_set_child (GTK_WINDOW (window), box);
 
+	gtk_stack_add_titled(GTK_STACK(lcontrol_app.stack), box, NULL, "Battery");
+
+#if 0
     w = gtk_label_new("BlaBla");
     gtk_grid_attach (GTK_GRID(box), w, 1, 1, 1, 1);
     w = gtk_button_new_with_label("PrintMe");
@@ -114,51 +133,109 @@ void create_main_window (GtkWidget *appwindow)
 
     w=gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_grid_attach (GTK_GRID(box), w, 1, 2, 2, 1);
+#endif
 
     w=gtk_image_new_from_icon_name("battery-low-charging");
     gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 1, 2);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 1, 2);
 
     w=gtk_image_new_from_icon_name("battery-full-charged");
     gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 5, 1, 2);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 1, 2);
 
     w = gtk_label_new("Start charge threshold");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 2, 1);
 
     bat_start_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
     gtk_scale_set_draw_value (GTK_SCALE(bat_start_slider), true);
     gtk_range_set_value(GTK_RANGE(bat_start_slider), 40.);
     g_signal_connect (bat_start_slider, "value-changed", G_CALLBACK (bat_start_val_chg), NULL);
     gtk_widget_set_hexpand(bat_start_slider, true);
-    gtk_grid_attach (GTK_GRID(box), bat_start_slider, 2, 4, 1, 1);
+    if (!is_root)
+        gtk_widget_set_sensitive(bat_start_slider, false);
+    gtk_grid_attach (GTK_GRID(box), bat_start_slider, 2, 2, 1, 1);
 
     w = gtk_label_new("End charge threshold");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 5, 2, 1);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
 
     bat_end_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
     gtk_scale_set_draw_value (GTK_SCALE(bat_end_slider), true);
     gtk_range_set_value(GTK_RANGE(bat_end_slider), 90.);
     g_signal_connect (bat_end_slider, "value-changed", G_CALLBACK (bat_end_val_chg), NULL);
-    gtk_grid_attach (GTK_GRID(box), bat_end_slider, 2, 6, 1, 1);
+    if (!is_root)
+        gtk_widget_set_sensitive(bat_end_slider, false);
+    gtk_grid_attach (GTK_GRID(box), bat_end_slider, 2, 4, 1, 1);
+
+    w = gtk_button_new_with_label("Charge now!");
+    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 5, 1, 1);
+
+    w = gtk_button_new_with_label("Stop charge");
+    gtk_widget_set_hexpand(w, false);
+    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
+    gtk_grid_attach (GTK_GRID(box), w, 2, 5, 1, 1);
+
+
+
+    box = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(box), 1);
+	gtk_stack_add_titled(GTK_STACK(lcontrol_app.stack), box, NULL, "CPU");
+    w = gtk_label_new("Long term energy limit (PL1)");
+    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 2, 1);
+    w = gtk_spin_button_new_with_range(5, 40, .1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), 15);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 2, 1, 1);
+    w = gtk_label_new("W");
+    gtk_grid_attach (GTK_GRID(box), w, 2, 2, 1, 1);
+    w = gtk_label_new("Short term energy limit (PL2)");
+    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
+    w = gtk_spin_button_new_with_range(5, 40, .1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), 20);
+    gtk_grid_attach (GTK_GRID(box), w, 1, 4, 1, 1);
+    w = gtk_label_new("W");
+    gtk_grid_attach (GTK_GRID(box), w, 2, 4, 1, 1);
+    w = gtk_button_new_with_label("Apply");
+    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
+    gtk_grid_attach (GTK_GRID(box), w, 2, 5, 1, 1);
+
+
+    box = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(box), 1);
+
+	gtk_stack_add_titled(GTK_STACK(lcontrol_app.stack), box, NULL, "LEDs");
+
+
+#if 0
+    w = gtk_label_new("WiFi/BT LED");
+    gtk_grid_attach (GTK_GRID(box), w, 1, 5, 2, 1);
+
+    w = gtk_radio_button_new_with_label("rfkill");
+    w2 = gtk_radio_button_new_with_label("WiFi activity");
+    gtk_radio_button_join_group(GTK_RADIO_BUTTON(w));
+
+    gtk_grid_attach (GTK_GRID(box), w, 2, 8, 1, 1);
+    gtk_grid_attach (GTK_GRID(box), w2, 2, 9, 1, 1);
+#endif
 }
 
 
 void gtest_app_activate (GApplication *application, gpointer user_data)
 {
-GtkWidget *widget;
+    if (getuid() == 0 || geteuid() == 0) {
+        is_root=true;
+	}
 
-    widget = gtk_application_window_new (GTK_APPLICATION (application));
-    create_main_window(widget);
-    gtk_window_present (GTK_WINDOW(widget));
+	lcontrol_app.window = gtk_application_window_new (GTK_APPLICATION (application));
+    create_main_window(lcontrol_app.window);
+    gtk_window_present (GTK_WINDOW(lcontrol_app.window));
 }
 
 int main (int argc, char **argv)
 {
-    gapp=gtk_application_new("com.purism.librem-control", G_APPLICATION_FLAGS_NONE);
-    g_signal_connect(gapp, "activate", G_CALLBACK (gtest_app_activate), NULL);
-    g_application_run (G_APPLICATION (gapp), argc, argv);
-    g_object_unref (gapp);
+    lcontrol_app.gapp=gtk_application_new("com.purism.librem-control", G_APPLICATION_FLAGS_NONE);
+    g_signal_connect(lcontrol_app.gapp, "activate", G_CALLBACK (gtest_app_activate), NULL);
+    g_application_run (G_APPLICATION (lcontrol_app.gapp), argc, argv);
+    g_object_unref (lcontrol_app.gapp);
 
 return 0;
 }
