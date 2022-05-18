@@ -3,16 +3,16 @@
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-    <action id="org.freedesktop.policykit.pkexec.gapptest">
-    <description>Run gapp-test program</description>
-    <message>Authentication is required to run the Librem-Control</message>
-    <icon_name>settings</icon_name>
+    <action id="org.freedesktop.policykit.pkexec.librem-control">
+    <description>Run Librem-Control program</description>
+    <message>Authentication is required to run the Librem-Conrol</message>
+    <icon_name>accessories-text-editor</icon_name>
     <defaults>
         <allow_any>auth_admin</allow_any>
         <allow_inactive>auth_admin</allow_inactive>
         <allow_active>auth_admin</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/home/nica/Code/gapp-test/gapp-test</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/librem-control</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
     </action>
 </policyconfig>
