@@ -1,4 +1,4 @@
-prefix=/usr/local
+prefix=/usr
 
 CC=gcc
 CFLAGS=-g -O2 -Wall -D_REENTRANT `pkg-config --cflags libadwaita-1`
