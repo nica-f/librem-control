@@ -25,6 +25,7 @@
 #include <fcntl.h>
 
 #include <adwaita.h>
+#include <glib.h>
 
 #define LED_RED_PATH			"/sys/class/leds/red:status"
 #define LED_GREEN_PATH			"/sys/class/leds/green:status"
@@ -32,22 +33,33 @@
 #define LED_AIRPLANE_PATH		"/sys/class/leds/librem_ec:airplane"
 #define LED_KBD_BACKLIGHT		"/sys/class/leds/librem_ec:kbd_backlight"
 
+#define BAT_SOC					"/sys/class/power_supply/BAT0/capacity"
 #define BAT_START_THRESHOLD_PATH	"/sys/class/power_supply/BAT0/charge_control_start_threshold"
 #define BAT_END_THRESHOLD_PATH		"/sys/class/power_supply/BAT0/charge_control_end_threshold"
 
 #define CPU_PL1_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_0_power_limit_uw"
 #define CPU_PL2_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_1_power_limit_uw"
+// CometLake U, TDP 15W, cTDP-Up 25W
+// Intel recommends: PL2 = PL1 * 1.25, would be 18.75W
+// some Intel NUC BIOS set this to 30/40 !?
 
 typedef struct {
 	GtkWidget *window;
 	GtkApplication *gapp;
 	gboolean is_root;
+	double bat_soc;
 	GtkWidget *bat_start_slider;
 	double bat_start_thres;
 	GtkWidget *bat_end_slider;
 	double bat_end_thres;
+	GtkWidget *bat_apply_btn;
+	GtkWidget *bat_undo_btn;
 	double cpu_pl1;
+	GtkWidget *cpu_pl1_slider;
 	double cpu_pl2;
+	GtkWidget *cpu_pl2_slider;
+	GtkWidget *cpu_apply_btn;
+	GtkWidget *cpu_undo_btn;
 	int red_val;
 	int green_val;
 	int blue_val;
@@ -82,6 +94,7 @@ static int set_value_to_text_file(char *fname, char *value)
 {
 	int fd;
 
+	fprintf(stderr, "set_value_to_text_file('%s', '%s')\n", fname, value);
 	if (value == NULL)
 		return -EINVAL;
 
@@ -98,6 +111,9 @@ static void update_values_get(lcontrol_app_t *lc_app)
 {
 	int val;
 
+	val = get_value_from_text_file(BAT_SOC);
+	if (val >= 0)
+		lc_app->bat_soc = (double)val;
 	val = get_value_from_text_file(BAT_START_THRESHOLD_PATH);
 	if (val >= 0)
 		lc_app->bat_start_thres = (double)val;
@@ -137,7 +153,7 @@ static void print_me (GtkWidget *widget, gpointer data)
     g_print ("EUID=%d\n", geteuid());
 }
 
-void bat_start_val_chg (GtkRange* self, gpointer user_data)
+static void bat_start_val_chg (GtkRange* self, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
     double bat_start_val;
@@ -158,21 +174,136 @@ void bat_start_val_chg (GtkRange* self, gpointer user_data)
     if (bat_start_val > bat_end_val) {
         gtk_range_set_value(GTK_RANGE(lc_app->bat_end_slider), bat_start_val);
     }
+
+    if (lc_app->is_root) {
+		gtk_widget_set_sensitive(lc_app->bat_apply_btn, true);
+		gtk_widget_set_sensitive(lc_app->bat_undo_btn, true);
+	}
 }
 
-void bat_end_val_chg (GtkRange* self, gpointer user_data)
+static void bat_end_val_chg (GtkRange* self, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
     double bat_start_val;
     double bat_end_val;
 
-    bat_start_val = gtk_range_get_value(GTK_RANGE(lc_app->bat_start_slider));
-    bat_end_val = gtk_range_get_value(self);
+	bat_start_val = gtk_range_get_value(GTK_RANGE(lc_app->bat_start_slider));
+	bat_end_val = gtk_range_get_value(self);
 
-    bat_end_val-=1;
-    if (bat_end_val < bat_start_val) {
-        gtk_range_set_value(GTK_RANGE(lc_app->bat_start_slider), bat_end_val);
+	bat_end_val-=1;
+	if (bat_end_val < bat_start_val) {
+		gtk_range_set_value(GTK_RANGE(lc_app->bat_start_slider), bat_end_val);
     }
+
+    if (lc_app->is_root) {
+		gtk_widget_set_sensitive(lc_app->bat_apply_btn, true);
+		gtk_widget_set_sensitive(lc_app->bat_undo_btn, true);
+	}
+}
+
+static void bat_thres_apply_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	char buf[32];
+
+    if (lc_app->is_root) {
+		lc_app->bat_end_thres = gtk_range_get_value(GTK_RANGE(lc_app->bat_end_slider));
+		lc_app->bat_start_thres = gtk_range_get_value(GTK_RANGE(lc_app->bat_start_slider));
+
+		snprintf(buf, 31, "%d", (int)lc_app->bat_start_thres);
+		set_value_to_text_file(BAT_START_THRESHOLD_PATH, buf);
+
+		snprintf(buf, 31, "%d", (int)lc_app->bat_end_thres);
+		set_value_to_text_file(BAT_END_THRESHOLD_PATH, buf);
+	}
+
+	gtk_widget_set_sensitive(lc_app->bat_apply_btn, false);
+	gtk_widget_set_sensitive(lc_app->bat_undo_btn, false);
+}
+
+static void bat_thres_undo_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+
+    if (lc_app->is_root) {
+    	gtk_range_set_value(GTK_RANGE(lc_app->bat_start_slider), lc_app->bat_start_thres);
+    	gtk_range_set_value(GTK_RANGE(lc_app->bat_end_slider), lc_app->bat_end_thres);
+	}
+
+	gtk_widget_set_sensitive(lc_app->bat_apply_btn, false);
+	gtk_widget_set_sensitive(lc_app->bat_undo_btn, false);
+}
+
+static void start_charge_now_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	int tval;
+	char buf[32];
+
+	// only works if SOC < end threshold
+	if (lc_app->bat_end_thres < lc_app->bat_soc) {
+		fprintf(stderr, "not starting, end %d, soc %d\n", (int)lc_app->bat_end_thres, (int)lc_app->bat_soc);
+		return;
+	}
+	tval = 	(int)lc_app->bat_end_thres - 1;
+	snprintf(buf, 31, "%d", tval);
+	set_value_to_text_file(BAT_START_THRESHOLD_PATH, buf);
+	g_usleep(G_USEC_PER_SEC);
+	snprintf(buf, 31, "%d", (int)lc_app->bat_start_thres);
+	set_value_to_text_file(BAT_START_THRESHOLD_PATH, buf);
+}
+
+static void stop_charge_now_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	int tval;
+	char buf[32];
+
+	// only works if start threshold < SOC
+	if (lc_app->bat_start_thres >= lc_app->bat_soc) {
+		return;
+	}
+	tval = 	(int)lc_app->bat_soc + 1;
+	snprintf(buf, 31, "%d", tval);
+	set_value_to_text_file(BAT_END_THRESHOLD_PATH, buf);
+	g_usleep(G_USEC_PER_SEC);
+	snprintf(buf, 31, "%d", (int)lc_app->bat_end_thres);
+	set_value_to_text_file(BAT_END_THRESHOLD_PATH, buf);
+
+}
+
+static void cpu_pl1_val_chg (GtkRange* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+
+	gtk_widget_set_sensitive(lc_app->cpu_apply_btn, true);
+	gtk_widget_set_sensitive(lc_app->cpu_undo_btn, true);
+}
+
+static void cpu_pl2_val_chg (GtkRange* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+
+	gtk_widget_set_sensitive(lc_app->cpu_apply_btn, true);
+	gtk_widget_set_sensitive(lc_app->cpu_undo_btn, true);
+}
+
+static void cpu_undo_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+
+    if (lc_app->is_root) {
+    	gtk_range_set_value(GTK_RANGE(lc_app->cpu_pl1_slider), lc_app->cpu_pl1);
+    	gtk_range_set_value(GTK_RANGE(lc_app->cpu_pl2_slider), lc_app->cpu_pl2);
+	}
+
+	gtk_widget_set_sensitive(lc_app->cpu_apply_btn, false);
+	gtk_widget_set_sensitive(lc_app->cpu_undo_btn, false);
+}
+
+static void cpu_apply_clicked (GtkWidget *widget, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
 }
 
 void kbd_backl_val_chg (GtkRange* self, gpointer user_data)
@@ -193,8 +324,10 @@ static void close_window (gpointer user_data)
 	//gtk_application_remove_window(lc_app->gapp, GTK_WINDOW(lc_app->window));
 }
 
+
 #define USE_GSTACK 1
 
+#if 0
 void create_main_window (lcontrol_app_t *lc_app)
 {
     GtkWidget *box;
@@ -305,7 +438,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 #endif
     w = gtk_label_new("Long term energy limit (PL1)");
     gtk_grid_attach (GTK_GRID(box), w, 1, 1, 2, 1);
-    w = gtk_spin_button_new_with_range(5, 40, .1);
+    w = gtk_spin_button_new_with_range(5, 15, .1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), lc_app->cpu_pl1);
     if (!lc_app->is_root)
         gtk_widget_set_sensitive(w, false);
@@ -315,7 +448,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 
     w = gtk_label_new("Short term energy limit (PL2)");
     gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
-    w = gtk_spin_button_new_with_range(5, 40, .1);
+    w = gtk_spin_button_new_with_range(5, 25, .1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), lc_app->cpu_pl2);
     if (!lc_app->is_root)
         gtk_widget_set_sensitive(w, false);
@@ -390,15 +523,199 @@ void create_main_window (lcontrol_app_t *lc_app)
     gtk_grid_attach (GTK_GRID(box), w2, 2, 9, 1, 1);
 #endif
 }
+#else
+void create_main_window (lcontrol_app_t *lc_app)
+{
+    GtkWidget *box;
+    GtkWidget *w, *w2, *c;
+	GtkWidget *stack;
+	GtkWidget *stack_sb;
 
+    gtk_window_set_title (GTK_WINDOW (lc_app->window), "Librem Control");
+	gtk_window_set_default_size(GTK_WINDOW(lc_app->window), 400, 300);
+
+    g_signal_connect (lc_app->window, "destroy",
+        G_CALLBACK (close_window), lc_app);
+
+    box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    gtk_window_set_child (GTK_WINDOW (lc_app->window), box);
+
+	stack_sb=gtk_stack_sidebar_new();
+	gtk_box_append(GTK_BOX(box), stack_sb);
+
+	stack=gtk_stack_new();
+	gtk_box_append(GTK_BOX(box), stack);
+	gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
+	gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(stack_sb), GTK_STACK(stack));
+
+	//
+	// Battery page
+	//
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+	gtk_stack_add_titled(GTK_STACK(stack), box, "Battery", "Battery");
+
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_box_append(GTK_BOX(box), c);
+	w = gtk_label_new("SOC");
+	gtk_widget_set_vexpand(w, false);
+	gtk_widget_set_hexpand(w, false);
+	gtk_box_append(GTK_BOX(c), w);
+	w = gtk_progress_bar_new();
+	gtk_widget_set_hexpand(w, true);
+	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(w), true);
+	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(w), lc_app->bat_soc / 100.);
+	gtk_box_append(GTK_BOX(c), w);
+
+	w = gtk_frame_new("Start Charge Threshold");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	w = gtk_image_new_from_icon_name("battery-low-charging");
+    gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
+	gtk_box_append(GTK_BOX(c), w);
+    lc_app->bat_start_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
+    gtk_scale_set_draw_value (GTK_SCALE(lc_app->bat_start_slider), true);
+    gtk_scale_set_value_pos(GTK_SCALE(lc_app->bat_start_slider), GTK_POS_RIGHT);
+    gtk_range_set_value(GTK_RANGE(lc_app->bat_start_slider), lc_app->bat_start_thres);
+    g_signal_connect (lc_app->bat_start_slider, "value-changed", G_CALLBACK (bat_start_val_chg), lc_app);
+    gtk_widget_set_hexpand(lc_app->bat_start_slider, true);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(lc_app->bat_start_slider, false);
+	}
+	gtk_box_append(GTK_BOX(c), lc_app->bat_start_slider);
+	w = gtk_label_new("%");
+	gtk_box_append(GTK_BOX(c), w);
+
+	w = gtk_frame_new("End Charge Threshold");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	w = gtk_image_new_from_icon_name("battery-full-charged");
+    gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
+	gtk_box_append(GTK_BOX(c), w);
+    lc_app->bat_end_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
+    gtk_scale_set_draw_value (GTK_SCALE(lc_app->bat_end_slider), true);
+    gtk_scale_set_value_pos(GTK_SCALE(lc_app->bat_end_slider), GTK_POS_RIGHT);
+    gtk_range_set_value(GTK_RANGE(lc_app->bat_end_slider), lc_app->bat_end_thres);
+    g_signal_connect (lc_app->bat_end_slider, "value-changed", G_CALLBACK (bat_end_val_chg), lc_app);
+    gtk_widget_set_hexpand(lc_app->bat_end_slider, true);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(lc_app->bat_end_slider, false);
+	}
+	gtk_box_append(GTK_BOX(c), lc_app->bat_end_slider);
+	w = gtk_label_new("%");
+	gtk_box_append(GTK_BOX(c), w);
+
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_box_append(GTK_BOX(box), c);
+	w = gtk_label_new("");
+    gtk_widget_set_hexpand(w, true);
+	gtk_box_append(GTK_BOX(c), w);
+	lc_app->bat_undo_btn = gtk_button_new_from_icon_name("edit-undo-symbolic");
+	gtk_widget_set_sensitive(lc_app->bat_undo_btn, false);
+    g_signal_connect (lc_app->bat_undo_btn, "clicked", G_CALLBACK (bat_thres_undo_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), lc_app->bat_undo_btn);
+	lc_app->bat_apply_btn = gtk_button_new_from_icon_name("emblem-ok-symbolic");
+	gtk_widget_set_sensitive(lc_app->bat_apply_btn, false);
+    g_signal_connect (lc_app->bat_apply_btn, "clicked", G_CALLBACK (bat_thres_apply_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), lc_app->bat_apply_btn);
+
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_box_append(GTK_BOX(box), c);
+	w = gtk_button_new_with_label("Start charge now!");
+	gtk_widget_set_tooltip_text(w, "Will start charging immediately,\nup to End Charge Threshold");
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+	}
+    g_signal_connect (w, "clicked", G_CALLBACK (start_charge_now_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), w);
+	w = gtk_label_new("");
+    gtk_widget_set_hexpand(w, true);
+	gtk_box_append(GTK_BOX(c), w);
+
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_box_append(GTK_BOX(box), c);
+	w = gtk_button_new_with_label("Stop charge now!");
+	gtk_widget_set_tooltip_text(w, "Will stop charging immediately.");
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+	}
+    g_signal_connect (w, "clicked", G_CALLBACK (stop_charge_now_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), w);
+	w = gtk_label_new("");
+    gtk_widget_set_hexpand(w, true);
+	gtk_box_append(GTK_BOX(c), w);
+
+	//
+	// CPU page
+	//
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+	gtk_stack_add_titled(GTK_STACK(stack), box, "CPU", "CPU");
+
+	w = gtk_frame_new("Long Term");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	w = gtk_label_new("PL1");
+    // gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
+	gtk_box_append(GTK_BOX(c), w);
+    lc_app->cpu_pl1_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 20., 1);
+    gtk_scale_set_draw_value (GTK_SCALE(lc_app->cpu_pl1_slider), true);
+    gtk_scale_set_value_pos(GTK_SCALE(lc_app->cpu_pl1_slider), GTK_POS_RIGHT);
+    gtk_range_set_value(GTK_RANGE(lc_app->cpu_pl1_slider), lc_app->cpu_pl1);
+    g_signal_connect (lc_app->cpu_pl1_slider, "value-changed", G_CALLBACK (cpu_pl1_val_chg), lc_app);
+    gtk_widget_set_hexpand(lc_app->cpu_pl1_slider, true);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(lc_app->cpu_pl1_slider, false);
+	}
+	gtk_box_append(GTK_BOX(c), lc_app->cpu_pl1_slider);
+	w = gtk_label_new("W");
+	gtk_box_append(GTK_BOX(c), w);
+
+	w = gtk_frame_new("Short Term");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	w = gtk_label_new("PL2");
+    // gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
+	gtk_box_append(GTK_BOX(c), w);
+    lc_app->cpu_pl2_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 35., 1);
+    gtk_scale_set_draw_value (GTK_SCALE(lc_app->cpu_pl2_slider), true);
+    gtk_scale_set_value_pos(GTK_SCALE(lc_app->cpu_pl2_slider), GTK_POS_RIGHT);
+    gtk_range_set_value(GTK_RANGE(lc_app->cpu_pl2_slider), lc_app->cpu_pl2);
+    g_signal_connect (lc_app->cpu_pl2_slider, "value-changed", G_CALLBACK (cpu_pl2_val_chg), lc_app);
+    gtk_widget_set_hexpand(lc_app->cpu_pl2_slider, true);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(lc_app->cpu_pl2_slider, false);
+	}
+	gtk_box_append(GTK_BOX(c), lc_app->cpu_pl2_slider);
+	w = gtk_label_new("W");
+	gtk_box_append(GTK_BOX(c), w);
+
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_box_append(GTK_BOX(box), c);
+	w = gtk_label_new("");
+    gtk_widget_set_hexpand(w, true);
+	gtk_box_append(GTK_BOX(c), w);
+	lc_app->cpu_undo_btn = gtk_button_new_from_icon_name("edit-undo-symbolic");
+	gtk_widget_set_sensitive(lc_app->cpu_undo_btn, false);
+    g_signal_connect (lc_app->cpu_undo_btn, "clicked", G_CALLBACK (cpu_undo_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), lc_app->cpu_undo_btn);
+	lc_app->cpu_apply_btn = gtk_button_new_from_icon_name("emblem-ok-symbolic");
+	gtk_widget_set_sensitive(lc_app->cpu_apply_btn, false);
+    g_signal_connect (lc_app->cpu_apply_btn, "clicked", G_CALLBACK (cpu_apply_clicked), lc_app);
+	gtk_box_append(GTK_BOX(c), lc_app->cpu_apply_btn);
+
+}
+#endif
 
 void gtest_app_activate (GApplication *application, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
 
-//    if (getuid() == 0 || geteuid() == 0) {
+    if (getuid() == 0 || geteuid() == 0) {
         lc_app->is_root=true;
-//	}
+	}
 
 	lc_app->window = gtk_application_window_new (GTK_APPLICATION (application));
     create_main_window(lc_app);
@@ -412,6 +729,7 @@ static lcontrol_app_t lcontrol_app;
 	lcontrol_app.is_root = false;
 	lcontrol_app.cpu_pl1 = 15.0;
 	lcontrol_app.cpu_pl1 = 20.0;
+	lcontrol_app.bat_soc = 0.;
 	lcontrol_app.bat_start_thres = 90;
 	lcontrol_app.bat_end_thres = 100;
 
