@@ -60,11 +60,14 @@ typedef struct {
 	GtkWidget *cpu_pl2_slider;
 	GtkWidget *cpu_apply_btn;
 	GtkWidget *cpu_undo_btn;
+	int kbd_backl;
+	GtkWidget *rfkill_tbtn1;
+	GtkWidget *rfkill_tbtn2;
+	GtkWidget *rfkill_tbtn3;
+	bool airplane;
 	int red_val;
 	int green_val;
 	int blue_val;
-	int kbd_backl;
-	bool airplane;
 } lcontrol_app_t ;
 
 
@@ -147,11 +150,6 @@ static void update_values_get(lcontrol_app_t *lc_app)
 		lc_app->airplane = (val > 0) ? true : false;
 }
 
-static void print_me (GtkWidget *widget, gpointer data)
-{
-    g_print ("UID=%d\n", getuid());
-    g_print ("EUID=%d\n", geteuid());
-}
 
 static void bat_start_val_chg (GtkRange* self, gpointer user_data)
 {
@@ -304,9 +302,23 @@ static void cpu_undo_clicked (GtkWidget *widget, gpointer user_data)
 static void cpu_apply_clicked (GtkWidget *widget, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	char buf[32];
+
+    if (lc_app->is_root) {
+    	lc_app->cpu_pl1 = gtk_range_get_value(GTK_RANGE(lc_app->cpu_pl1_slider));
+    	lc_app->cpu_pl2 = gtk_range_get_value(GTK_RANGE(lc_app->cpu_pl2_slider));
+
+		snprintf(buf, 31, "%d", (int)lc_app->cpu_pl1 * 1000000);
+		set_value_to_text_file(CPU_PL1_PATH, buf);
+		snprintf(buf, 31, "%d", (int)lc_app->cpu_pl2 * 1000000);
+		set_value_to_text_file(CPU_PL2_PATH, buf);
+	}
+
+	gtk_widget_set_sensitive(lc_app->cpu_apply_btn, false);
+	gtk_widget_set_sensitive(lc_app->cpu_undo_btn, false);
 }
 
-void kbd_backl_val_chg (GtkRange* self, gpointer user_data)
+static void kbd_backl_val_chg (GtkRange* self, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
 	char buf[32];
@@ -315,6 +327,27 @@ void kbd_backl_val_chg (GtkRange* self, gpointer user_data)
 	snprintf(buf, 31, "%d", lc_app->kbd_backl);
 	set_value_to_text_file(LED_KBD_BACKLIGHT "/brightness", buf);
 }
+
+
+static void led_rfkill_toggled (GtkCheckButton* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+
+	if (!gtk_check_button_get_active(self)) {
+		return;
+	} else {
+		if (GTK_WIDGET(self) == lc_app->rfkill_tbtn1) {
+			set_value_to_text_file(LED_AIRPLANE_PATH "/trigger", "rfkill-none");
+		};
+		if (GTK_WIDGET(self) == lc_app->rfkill_tbtn2) {
+			set_value_to_text_file(LED_AIRPLANE_PATH "/trigger", "phy0rx");
+		};
+		if (GTK_WIDGET(self) == lc_app->rfkill_tbtn3) {
+			set_value_to_text_file(LED_AIRPLANE_PATH "/trigger", "phy0tx");
+		};
+	}
+}
+
 
 static void close_window (gpointer user_data)
 {
@@ -527,7 +560,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 void create_main_window (lcontrol_app_t *lc_app)
 {
     GtkWidget *box;
-    GtkWidget *w, *w2, *c;
+    GtkWidget *w, *c;
 	GtkWidget *stack;
 	GtkWidget *stack_sb;
 
@@ -706,6 +739,45 @@ void create_main_window (lcontrol_app_t *lc_app)
     g_signal_connect (lc_app->cpu_apply_btn, "clicked", G_CALLBACK (cpu_apply_clicked), lc_app);
 	gtk_box_append(GTK_BOX(c), lc_app->cpu_apply_btn);
 
+	//
+	// LEDs page
+	//
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+	gtk_stack_add_titled(GTK_STACK(stack), box, "LEDs", "LEDs");
+
+	w = gtk_frame_new("Keyboard Backlight");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 255., 1);
+    gtk_scale_set_draw_value (GTK_SCALE(w), false);
+    gtk_widget_set_hexpand(w, true);
+    gtk_range_set_value(GTK_RANGE(w), lc_app->kbd_backl);
+    g_signal_connect (w, "value-changed", G_CALLBACK (kbd_backl_val_chg), lc_app);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+    }
+	gtk_box_append(GTK_BOX(c), w);
+
+	w = gtk_frame_new("WiFi / BT");
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+
+	lc_app->rfkill_tbtn1=gtk_check_button_new_with_label("Rfkill");
+	gtk_check_button_set_group(GTK_CHECK_BUTTON(lc_app->rfkill_tbtn1),NULL);
+	gtk_box_append(GTK_BOX(c), lc_app->rfkill_tbtn1);
+	lc_app->rfkill_tbtn2=gtk_check_button_new_with_label("WiFi RX activity");
+	gtk_check_button_set_group(GTK_CHECK_BUTTON(lc_app->rfkill_tbtn2),GTK_CHECK_BUTTON(lc_app->rfkill_tbtn1));
+	gtk_box_append(GTK_BOX(c), lc_app->rfkill_tbtn2);
+	lc_app->rfkill_tbtn3=gtk_check_button_new_with_label("WiFi TX activity");
+	gtk_check_button_set_group(GTK_CHECK_BUTTON(lc_app->rfkill_tbtn3),GTK_CHECK_BUTTON(lc_app->rfkill_tbtn1));
+	gtk_box_append(GTK_BOX(c), lc_app->rfkill_tbtn3);
+	gtk_check_button_set_active(GTK_CHECK_BUTTON(lc_app->rfkill_tbtn1), true);
+
+    g_signal_connect (lc_app->rfkill_tbtn1, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
+    g_signal_connect (lc_app->rfkill_tbtn2, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
+    g_signal_connect (lc_app->rfkill_tbtn3, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
 }
 #endif
 
