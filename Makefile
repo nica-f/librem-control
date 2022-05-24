@@ -4,7 +4,7 @@ CC=gcc
 CFLAGS=-g -O2 -Wall -D_REENTRANT `pkg-config --cflags libadwaita-1`
 LIBS=`pkg-config --libs libadwaita-1`
 
-OBJ=librem-control.o
+OBJ=librem-control.o ec-tool.o
 PRG=librem-control
 
 all: $(PRG)
