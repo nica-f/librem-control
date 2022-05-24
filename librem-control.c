@@ -27,6 +27,8 @@
 #include <adwaita.h>
 #include <glib.h>
 
+#include "ec-tool.h"
+
 #define LED_RED_PATH			"/sys/class/leds/red:status"
 #define LED_GREEN_PATH			"/sys/class/leds/green:status"
 #define LED_BLUE_PATH			"/sys/class/leds/blue:status"
@@ -39,9 +41,22 @@
 
 #define CPU_PL1_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_0_power_limit_uw"
 #define CPU_PL2_PATH			"/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/constraint_1_power_limit_uw"
+
+#define BIOS_DMI_PATH			"/sys/class/dmi/id/"
+#define BIOS_DMI_PRODUCT_NAME	"product_name"
+#define BIOS_DMI_BIOS_VERSION	"bios_version"
+#define BIOS_DMI_BIOS_DATE		"bios_date"
+#define BIOS_DMI_BOARD_SERIAL	"board_serial"
+
 // CometLake U, TDP 15W, cTDP-Up 25W
 // Intel recommends: PL2 = PL1 * 1.25, would be 18.75W
 // some Intel NUC BIOS set this to 30/40 !?
+
+// /sys/class/dmi/id/
+// bios_version
+// bios_date
+// board_serial
+// product_name
 
 typedef struct {
 	GtkWidget *window;
@@ -71,6 +86,36 @@ typedef struct {
 } lcontrol_app_t ;
 
 
+static int get_string_from_text_file(char *fname, char *string, int len)
+{
+	FILE *fp;
+	int res;
+
+	if (len < 2)
+		return -1;
+
+	fp=fopen(fname, "r");
+
+	if (fp==NULL) {
+		perror(fname);
+		return -1;
+	}
+
+	memset(string, 0, len);
+
+	res = fread(string, 1, len-1, fp);
+	if (res <= 0) {
+		fclose(fp);
+		return -1;
+	}
+	fclose(fp);
+
+	if (string[res-1] == '\n')
+		string[res-1] = 0;
+
+	return res;
+}
+
 static int get_value_from_text_file(char *fname)
 {
 	FILE *fp;
@@ -97,7 +142,7 @@ static int set_value_to_text_file(char *fname, char *value)
 {
 	int fd;
 
-	fprintf(stderr, "set_value_to_text_file('%s', '%s')\n", fname, value);
+	// fprintf(stderr, "set_value_to_text_file('%s', '%s')\n", fname, value);
 	if (value == NULL)
 		return -EINVAL;
 
@@ -246,7 +291,7 @@ static void start_charge_now_clicked (GtkWidget *widget, gpointer user_data)
 	tval = 	(int)lc_app->bat_end_thres - 1;
 	snprintf(buf, 31, "%d", tval);
 	set_value_to_text_file(BAT_START_THRESHOLD_PATH, buf);
-	g_usleep(G_USEC_PER_SEC);
+	g_usleep(G_USEC_PER_SEC + (G_USEC_PER_SEC / 4));
 	snprintf(buf, 31, "%d", (int)lc_app->bat_start_thres);
 	set_value_to_text_file(BAT_START_THRESHOLD_PATH, buf);
 }
@@ -264,7 +309,7 @@ static void stop_charge_now_clicked (GtkWidget *widget, gpointer user_data)
 	tval = 	(int)lc_app->bat_soc + 1;
 	snprintf(buf, 31, "%d", tval);
 	set_value_to_text_file(BAT_END_THRESHOLD_PATH, buf);
-	g_usleep(G_USEC_PER_SEC);
+	g_usleep(G_USEC_PER_SEC + (G_USEC_PER_SEC / 4));
 	snprintf(buf, 31, "%d", (int)lc_app->bat_end_thres);
 	set_value_to_text_file(BAT_END_THRESHOLD_PATH, buf);
 
@@ -358,205 +403,6 @@ static void close_window (gpointer user_data)
 }
 
 
-#define USE_GSTACK 1
-
-#if 0
-void create_main_window (lcontrol_app_t *lc_app)
-{
-    GtkWidget *box;
-    GtkWidget *w, *w2;
-#ifdef USE_GSTACK
-	GtkWidget *stack;
-	GtkWidget *stack_sb;
-#else
-	GtkWidget *leaflet;
-	AdwLeafletPage *llpage;
-#endif
-    gtk_window_set_title (GTK_WINDOW (lc_app->window), "Librem Control");
-	gtk_window_set_default_size(GTK_WINDOW(lc_app->window), 400, 300);
-
-    g_signal_connect (lc_app->window, "destroy",
-        G_CALLBACK (close_window), lc_app);
-
-    box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-    gtk_window_set_child (GTK_WINDOW (lc_app->window), box);
-
-#ifdef USE_GSTACK
-	stack_sb=gtk_stack_sidebar_new();
-	gtk_box_append(GTK_BOX(box), stack_sb);
-
-	stack=gtk_stack_new();
-	gtk_box_append(GTK_BOX(box), stack);
-	gtk_stack_set_transition_type(GTK_STACK(stack), GTK_STACK_TRANSITION_TYPE_CROSSFADE);
-
-	gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(stack_sb), GTK_STACK(stack));
-#else
-	leaflet = adw_leaflet_new();
-	adw_leaflet_set_can_navigate_back(ADW_LEAFLET(leaflet), true);
-	adw_leaflet_set_can_navigate_forward(ADW_LEAFLET(leaflet), true);
-	adw_leaflet_set_can_unfold(ADW_LEAFLET(leaflet), true);
-	gtk_box_append(GTK_BOX(box), leaflet);
-#endif
-	//
-	// Battery page
-	//
-    box = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(box), 1);
-
-#ifdef USE_GSTACK
-	gtk_stack_add_titled(GTK_STACK(stack), box, NULL, "Battery");
-#else
-	llpage = adw_leaflet_append(ADW_LEAFLET(leaflet), box);
-	adw_leaflet_page_set_name(llpage, "Battery");
-#endif
-    w=gtk_image_new_from_icon_name("battery-low-charging");
-    gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 1, 2);
-
-    w=gtk_image_new_from_icon_name("battery-full-charged");
-    gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 1, 2);
-
-    w = gtk_label_new("Start charge threshold");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 3, 1);
-
-    lc_app->bat_start_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
-    gtk_scale_set_draw_value (GTK_SCALE(lc_app->bat_start_slider), true);
-    gtk_range_set_value(GTK_RANGE(lc_app->bat_start_slider), lc_app->bat_start_thres);
-    g_signal_connect (lc_app->bat_start_slider, "value-changed", G_CALLBACK (bat_start_val_chg), lc_app);
-    gtk_widget_set_hexpand(lc_app->bat_start_slider, true);
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(lc_app->bat_start_slider, false);
-    gtk_grid_attach (GTK_GRID(box), lc_app->bat_start_slider, 2, 2, 2, 1);
-
-    w = gtk_label_new("End charge threshold");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 3, 1);
-
-    lc_app->bat_end_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 100., 1);
-    gtk_scale_set_draw_value (GTK_SCALE(lc_app->bat_end_slider), true);
-    gtk_range_set_value(GTK_RANGE(lc_app->bat_end_slider), lc_app->bat_end_thres);
-    g_signal_connect (lc_app->bat_end_slider, "value-changed", G_CALLBACK (bat_end_val_chg), lc_app);
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(lc_app->bat_end_slider, false);
-    gtk_grid_attach (GTK_GRID(box), lc_app->bat_end_slider, 2, 4, 2, 1);
-
-    w = gtk_button_new_with_label("Apply");
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
-    gtk_grid_attach (GTK_GRID(box), w, 2, 5, 1, 1);
-
-    w = gtk_button_new_with_label("Charge now!");
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 6, 2, 1);
-
-    w = gtk_button_new_with_label("Stop charge now!");
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 7, 2, 1);
-
-	//
-	// CPU page
-	//
-    box = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(box), 1);
-#ifdef USE_GSTACK
-	gtk_stack_add_titled(GTK_STACK(stack), box, NULL, "CPU");
-#else
-	llpage = adw_leaflet_append(ADW_LEAFLET(leaflet), box);
-	adw_leaflet_page_set_name(llpage, "CPU");
-#endif
-    w = gtk_label_new("Long term energy limit (PL1)");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 2, 1);
-    w = gtk_spin_button_new_with_range(5, 15, .1);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), lc_app->cpu_pl1);
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 2, 1, 1);
-    w = gtk_label_new("W");
-    gtk_grid_attach (GTK_GRID(box), w, 2, 2, 1, 1);
-
-    w = gtk_label_new("Short term energy limit (PL2)");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
-    w = gtk_spin_button_new_with_range(5, 25, .1);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w), lc_app->cpu_pl2);
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 4, 1, 1);
-    w = gtk_label_new("W");
-    gtk_grid_attach (GTK_GRID(box), w, 2, 4, 1, 1);
-
-    w = gtk_button_new_with_label("Apply");
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    g_signal_connect (w, "clicked", G_CALLBACK (print_me), NULL);
-    gtk_grid_attach (GTK_GRID(box), w, 2, 5, 1, 1);
-
-
-	//
-	// LEDs page
-	//
-    box = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(box), 1);
-
-#ifdef USE_GSTACK
-	gtk_stack_add_titled(GTK_STACK(stack), box, NULL, "LEDs");
-#else
-	llpage = adw_leaflet_append(ADW_LEAFLET(leaflet), box);
-	adw_leaflet_page_set_name(llpage, "LEDs");
-#endif
-    w = gtk_label_new("Notification");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 1, 2, 1);
-
-	w = gtk_color_button_new();
-	gtk_color_chooser_set_use_alpha(GTK_COLOR_CHOOSER(w), false);
-    gtk_grid_attach (GTK_GRID(box), w, 2, 2, 1, 1);
-
-    w = gtk_label_new("Keyboard backlight");
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    gtk_grid_attach (GTK_GRID(box), w, 1, 3, 2, 1);
-
-	w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 255., 1);
-    gtk_scale_set_draw_value (GTK_SCALE(w), true);
-    gtk_widget_set_hexpand(w, true);
-    gtk_range_set_value(GTK_RANGE(w), lc_app->kbd_backl);
-    g_signal_connect (w, "value-changed", G_CALLBACK (kbd_backl_val_chg), lc_app);
-    if (!lc_app->is_root)
-        gtk_widget_set_sensitive(w, false);
-    gtk_grid_attach (GTK_GRID(box), w, 2, 4, 2, 1);
-
-    w = gtk_label_new("WiFi/BT");
-    gtk_grid_attach (GTK_GRID(box), w, 1, 5, 2, 1);
-
-    w = gtk_label_new("Trigger:");
-    gtk_grid_attach (GTK_GRID(box), w, 2, 6, 1, 1);
-	const char *rfk_labels[] = {"Rfkill","WiFi TX","WiFi RX", NULL};
-	w=gtk_drop_down_new_from_strings(rfk_labels);
-    gtk_grid_attach (GTK_GRID(box), w, 3, 6, 1, 1);
-#if 0
-	w=gtk_check_button_new_with_label("Rfkill");
-    gtk_grid_attach (GTK_GRID(box), w, 2, 6, 1, 1);
-	w2=gtk_check_button_new_with_label("WiFi tx activity");
-	gtk_check_button_set_group(GTK_CHECK_BUTTON(w),GTK_CHECK_BUTTON(w2));
-    gtk_grid_attach (GTK_GRID(box), w2, 2, 7, 1, 1);
-	w2=gtk_check_button_new_with_label("WiFi rx activity");
-	gtk_check_button_set_group(GTK_CHECK_BUTTON(w),GTK_CHECK_BUTTON(w2));
-    gtk_grid_attach (GTK_GRID(box), w2, 2, 8, 1, 1);
-#endif
-#if 0
-    w = gtk_radio_button_new_with_label("rfkill");
-    w2 = gtk_radio_button_new_with_label("WiFi activity");
-    gtk_radio_button_join_group(GTK_RADIO_BUTTON(w));
-
-    gtk_grid_attach (GTK_GRID(box), w, 2, 8, 1, 1);
-    gtk_grid_attach (GTK_GRID(box), w2, 2, 9, 1, 1);
-#endif
-}
-#else
 void create_main_window (lcontrol_app_t *lc_app)
 {
     GtkWidget *box;
@@ -778,8 +624,88 @@ void create_main_window (lcontrol_app_t *lc_app)
     g_signal_connect (lc_app->rfkill_tbtn1, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
     g_signal_connect (lc_app->rfkill_tbtn2, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
     g_signal_connect (lc_app->rfkill_tbtn3, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
+
+	//
+	// Info page
+	//
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+	gtk_stack_add_titled(GTK_STACK(stack), box, "Info", "Info");
+
+	w = gtk_frame_new("DMI");
+	gtk_box_append(GTK_BOX(box), w);
+    c = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(c), 1);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+	{
+		char buf[128];
+
+		w = gtk_label_new("Product name: ");
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 1, 1, 1, 1);
+		get_string_from_text_file(BIOS_DMI_PATH BIOS_DMI_PRODUCT_NAME, buf, 128);
+		w = gtk_label_new(buf);
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 2, 1, 1, 1);
+
+	    if (lc_app->is_root) {
+			w = gtk_label_new("Serial #: ");
+			gtk_widget_set_halign(w, GTK_ALIGN_START);
+		    gtk_grid_attach (GTK_GRID(c), w, 1, 2, 1, 1);
+			get_string_from_text_file(BIOS_DMI_PATH BIOS_DMI_BOARD_SERIAL, buf, 128);
+			w = gtk_label_new(buf);
+			gtk_widget_set_halign(w, GTK_ALIGN_START);
+		    gtk_grid_attach (GTK_GRID(c), w, 2, 2, 1, 1);
+		}
+
+		w = gtk_label_new("BIOS Version: ");
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 1, 3, 1, 1);
+		get_string_from_text_file(BIOS_DMI_PATH BIOS_DMI_BIOS_VERSION, buf, 128);
+		w = gtk_label_new(buf);
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 2, 3, 1, 1);
+
+		w = gtk_label_new("BIOS Date: ");
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 1, 4, 1, 1);
+		get_string_from_text_file(BIOS_DMI_PATH BIOS_DMI_BIOS_DATE, buf, 128);
+		w = gtk_label_new(buf);
+		gtk_widget_set_halign(w, GTK_ALIGN_START);
+	    gtk_grid_attach (GTK_GRID(c), w, 2, 4, 1, 1);
+	}
+
+	if (lc_app->is_root) {
+		w = gtk_frame_new("EC");
+		gtk_box_append(GTK_BOX(box), w);
+	    c = gtk_grid_new();
+	    gtk_grid_set_row_spacing(GTK_GRID(c), 1);
+		gtk_frame_set_child(GTK_FRAME(w), c);
+		{
+			char buf[0x100];
+			int fd;
+
+			fd=port_open();
+			if (fd > 0) {
+				get_ec_version(fd, buf);
+				w = gtk_label_new("Version: ");
+				gtk_widget_set_halign(w, GTK_ALIGN_START);
+			    gtk_grid_attach (GTK_GRID(c), w, 1, 1, 1, 1);
+				w = gtk_label_new(buf);
+				gtk_widget_set_halign(w, GTK_ALIGN_START);
+			    gtk_grid_attach (GTK_GRID(c), w, 2, 1, 1, 1);
+
+				get_ec_board(fd, buf);
+				w = gtk_label_new("Board: ");
+				gtk_widget_set_halign(w, GTK_ALIGN_START);
+			    gtk_grid_attach (GTK_GRID(c), w, 1, 2, 1, 1);
+				w = gtk_label_new(buf);
+				gtk_widget_set_halign(w, GTK_ALIGN_START);
+			    gtk_grid_attach (GTK_GRID(c), w, 2, 2, 1, 1);
+			}
+		}
+	}
 }
-#endif
+
 
 void gtest_app_activate (GApplication *application, gpointer user_data)
 {
