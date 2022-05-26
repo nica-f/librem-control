@@ -23,8 +23,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
-#include <adwaita.h>
+//#include <adwaita.h>
+#include <gtk/gtk.h>
 #include <glib.h>
 
 #include "ec-tool.h"
@@ -63,6 +65,7 @@ typedef struct {
 	GtkApplication *gapp;
 	gboolean is_root;
 	double bat_soc;
+	GtkWidget *bat_soc_pbar;
 	GtkWidget *bat_start_slider;
 	double bat_start_thres;
 	GtkWidget *bat_end_slider;
@@ -393,6 +396,18 @@ static void led_rfkill_toggled (GtkCheckButton* self, gpointer user_data)
 	}
 }
 
+gboolean update_values_timer(gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	int val;
+
+	val = get_value_from_text_file(BAT_SOC);
+	if (val >= 0) {
+		lc_app->bat_soc = (double)val;
+			gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), lc_app->bat_soc / 100.);
+	}
+	return G_SOURCE_CONTINUE;
+}
 
 static void close_window (gpointer user_data)
 {
@@ -439,11 +454,11 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_widget_set_vexpand(w, false);
 	gtk_widget_set_hexpand(w, false);
 	gtk_box_append(GTK_BOX(c), w);
-	w = gtk_progress_bar_new();
-	gtk_widget_set_hexpand(w, true);
-	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(w), true);
-	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(w), lc_app->bat_soc / 100.);
-	gtk_box_append(GTK_BOX(c), w);
+	lc_app->bat_soc_pbar = gtk_progress_bar_new();
+	gtk_widget_set_hexpand(lc_app->bat_soc_pbar, true);
+	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), true);
+	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), lc_app->bat_soc / 100.);
+	gtk_box_append(GTK_BOX(c), lc_app->bat_soc_pbar);
 
 	w = gtk_frame_new("Start Charge Threshold");
 	gtk_box_append(GTK_BOX(box), w);
@@ -718,6 +733,7 @@ void gtest_app_activate (GApplication *application, gpointer user_data)
 	lc_app->window = gtk_application_window_new (GTK_APPLICATION (application));
     create_main_window(lc_app);
     gtk_window_present (GTK_WINDOW(lc_app->window));
+    g_timeout_add_seconds(5, update_values_timer, lc_app);
 }
 
 int main (int argc, char **argv)
