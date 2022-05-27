@@ -1,0 +1,5 @@
+librem-control (0.0.1-2) byzantium; urgency=medium
+
+  * Initial release (Closes: #111984)
+
+ -- João Azevedo <joao.azevedo@puri.sm>  Wed, 25 May 2022 19:48:08 +0200
