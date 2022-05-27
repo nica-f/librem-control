@@ -1,0 +1,26 @@
+Source: librem-control
+Section: utils
+Priority: optional
+Maintainer: João Azevedo <joao.azevedo@puri.sm>
+Build-Depends: 
+	debhelper-compat (= 13),
+	pkg-config,
+	libgtk-4-dev,
+Standards-Version: 4.5.1
+Homepage: https://source.puri.sm/nicole.faerber/librem-control
+Vcs-Browser: https://source.puri.sm/nicole.faerber/librem-control
+Vcs-Git: https://source.puri.sm/nicole.faerber/librem-control.git
+Rules-Requires-Root: no
+
+Package: librem-control
+Architecture: amd64
+Depends: 
+	${shlibs:Depends},
+	${misc:Depends},
+	dmidecode,
+	libc6,
+Description: Librem 14 control
+ Controls some system settings of Librem 14 devices:
+  - Charge thresholds
+  - LED function
+  - Outputs BIOS version
