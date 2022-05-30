@@ -1,0 +1,11 @@
+librem-control (0.0.1-2) UNRELEASED; urgency=medium
+
+  * d/control change arch to: any
+
+ -- João Azevedo <joao.azevedo@puri.sm>  Sat, 28 May 2022 01:08:04 +0200
+
+librem-control (0.0.1-1) byzantium; urgency=medium
+
+  * Initial release (Closes: #1)
+
+ -- João Azevedo <joao.azevedo@puri.sm>  Wed, 25 May 2022 19:48:08 +0200
