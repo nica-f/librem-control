@@ -27,6 +27,7 @@
 
 //#include <adwaita.h>
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 #include <glib.h>
 
 #include "ec-tool.h"
@@ -84,8 +85,12 @@ typedef struct {
 	GtkWidget *rfkill_tbtn3;
 	bool airplane;
 	int red_val;
+	GtkWidget *notif_red_slider;
 	int green_val;
+	GtkWidget *notif_green_slider;
 	int blue_val;
+	GtkWidget *notif_blue_slider;
+	GtkWidget *notif_cbtn;
 } lcontrol_app_t ;
 
 
@@ -376,6 +381,74 @@ static void kbd_backl_val_chg (GtkRange* self, gpointer user_data)
 	set_value_to_text_file(LED_KBD_BACKLIGHT "/brightness", buf);
 }
 
+static void update_notif_cbtn(lcontrol_app_t *lc_app)
+{
+	GdkRGBA rgba;
+
+	rgba.red=(1./255.)*(float)lc_app->red_val;
+	rgba.green=(1./255.)*(float)lc_app->green_val;
+	rgba.blue=(1./255.)*(float)lc_app->blue_val;
+	rgba.alpha=1.;
+	gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(lc_app->notif_cbtn), &rgba);
+}
+
+static void notif_led_red_chg(GtkRange* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	char buf[32];
+
+	lc_app->red_val = gtk_range_get_value(self);
+	snprintf(buf, 31, "%d", lc_app->red_val);
+	set_value_to_text_file(LED_RED_PATH "/brightness", buf);
+	update_notif_cbtn(lc_app);
+}
+
+static void notif_led_green_chg(GtkRange* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	char buf[32];
+
+	lc_app->green_val = gtk_range_get_value(self);
+	snprintf(buf, 31, "%d", lc_app->green_val);
+	set_value_to_text_file(LED_GREEN_PATH "/brightness", buf);
+	update_notif_cbtn(lc_app);
+}
+
+static void notif_led_blue_chg(GtkRange* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	char buf[32];
+
+	lc_app->blue_val = gtk_range_get_value(self);
+	snprintf(buf, 31, "%d", lc_app->blue_val);
+	set_value_to_text_file(LED_BLUE_PATH "/brightness", buf);
+	update_notif_cbtn(lc_app);
+}
+
+static void notif_cbtn_set(GtkColorButton* self, gpointer user_data)
+{
+	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
+	GdkRGBA rgba;
+	//  char buf[32];
+
+	gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER(self), &rgba);
+	lc_app->red_val = (int)(rgba.red * 255.);
+	gtk_range_set_value(GTK_RANGE(lc_app->notif_red_slider), lc_app->red_val);
+	lc_app->green_val = (int)(rgba.green * 255.);
+	gtk_range_set_value(GTK_RANGE(lc_app->notif_green_slider), lc_app->green_val);
+	lc_app->blue_val = (int)(rgba.blue * 255.);
+	gtk_range_set_value(GTK_RANGE(lc_app->notif_blue_slider), lc_app->blue_val);
+
+#if 0
+	snprintf(buf, 31, "%d", lc_app->red_val);
+	set_value_to_text_file(LED_RED_PATH "/brightness", buf);
+	snprintf(buf, 31, "%d", lc_app->green_val);
+	set_value_to_text_file(LED_GREEN_PATH "/brightness", buf);
+	snprintf(buf, 31, "%d", lc_app->blue_val);
+	set_value_to_text_file(LED_BLUE_PATH "/brightness", buf);
+#endif
+}
+
 
 static void led_rfkill_toggled (GtkCheckButton* self, gpointer user_data)
 {
@@ -655,6 +728,54 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
+	box = gtk_grid_new();
+	gtk_box_append(GTK_BOX(c), box);
+	w=gtk_label_new("R");
+	gtk_grid_attach(GTK_GRID(box), w, 1, 1, 1, 1);	
+	w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 255., 1);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+	}
+    gtk_range_set_value(GTK_RANGE(w), lc_app->red_val);
+    g_signal_connect (w, "value-changed", G_CALLBACK (notif_led_red_chg), lc_app);
+ 	gtk_widget_set_hexpand(w, true);
+ 	lc_app->notif_red_slider = w;
+	gtk_grid_attach(GTK_GRID(box), w, 2, 1, 1, 1);	
+	w=gtk_label_new("G");
+	gtk_grid_attach(GTK_GRID(box), w, 1, 2, 1, 1);	
+	w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 255., 1);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+	}
+    gtk_range_set_value(GTK_RANGE(w), lc_app->green_val);
+    g_signal_connect (w, "value-changed", G_CALLBACK (notif_led_green_chg), lc_app);
+ 	lc_app->notif_green_slider = w;
+	gtk_grid_attach(GTK_GRID(box), w, 2, 2, 1, 1);
+	w=gtk_label_new("B");
+	gtk_grid_attach(GTK_GRID(box), w, 1, 3, 1, 1);
+	w = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 255., 1);
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(w, false);
+	}
+    gtk_range_set_value(GTK_RANGE(w), lc_app->blue_val);
+    g_signal_connect (w, "value-changed", G_CALLBACK (notif_led_blue_chg), lc_app);
+ 	lc_app->notif_blue_slider = w;
+	gtk_grid_attach(GTK_GRID(box), w, 2, 3, 1, 1);	
+	lc_app->notif_cbtn=gtk_color_button_new();
+	gtk_color_chooser_set_use_alpha(GTK_COLOR_CHOOSER(lc_app->notif_cbtn), false);
+	{
+		GdkRGBA rgba;
+		rgba.red=(1./255.)*(float)lc_app->red_val;
+		rgba.green=(1./255.)*(float)lc_app->green_val;
+		rgba.blue=(1./255.)*(float)lc_app->blue_val;
+		rgba.alpha=1.;
+		gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(lc_app->notif_cbtn), &rgba);
+	}
+    if (!lc_app->is_root) {
+        gtk_widget_set_sensitive(lc_app->notif_cbtn, false);
+	}
+    g_signal_connect (lc_app->notif_cbtn, "color-set", G_CALLBACK (notif_cbtn_set), lc_app);
+	gtk_grid_attach(GTK_GRID(box), lc_app->notif_cbtn, 3, 1, 1, 3);	
 
 	//
 	// Info page
