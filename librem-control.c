@@ -429,7 +429,6 @@ static void notif_cbtn_set(GtkColorButton* self, gpointer user_data)
 {
 	lcontrol_app_t *lc_app=(lcontrol_app_t *) user_data;
 	GdkRGBA rgba;
-	//  char buf[32];
 
 	gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER(self), &rgba);
 	lc_app->red_val = (int)(rgba.red * 255.);
@@ -438,15 +437,6 @@ static void notif_cbtn_set(GtkColorButton* self, gpointer user_data)
 	gtk_range_set_value(GTK_RANGE(lc_app->notif_green_slider), lc_app->green_val);
 	lc_app->blue_val = (int)(rgba.blue * 255.);
 	gtk_range_set_value(GTK_RANGE(lc_app->notif_blue_slider), lc_app->blue_val);
-
-#if 0
-	snprintf(buf, 31, "%d", lc_app->red_val);
-	set_value_to_text_file(LED_RED_PATH "/brightness", buf);
-	snprintf(buf, 31, "%d", lc_app->green_val);
-	set_value_to_text_file(LED_GREEN_PATH "/brightness", buf);
-	snprintf(buf, 31, "%d", lc_app->blue_val);
-	set_value_to_text_file(LED_BLUE_PATH "/brightness", buf);
-#endif
 }
 
 
