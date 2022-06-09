@@ -450,17 +450,20 @@ void create_main_window (lcontrol_app_t *lc_app)
 
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_box_append(GTK_BOX(box), c);
+	gtk_widget_set_margin_top(c, 3);
 	w = gtk_label_new("SOC");
 	gtk_widget_set_vexpand(w, false);
 	gtk_widget_set_hexpand(w, false);
 	gtk_box_append(GTK_BOX(c), w);
 	lc_app->bat_soc_pbar = gtk_progress_bar_new();
 	gtk_widget_set_hexpand(lc_app->bat_soc_pbar, true);
+	gtk_widget_set_margin_end(lc_app->bat_soc_pbar, 3);
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), true);
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), lc_app->bat_soc / 100.);
 	gtk_box_append(GTK_BOX(c), lc_app->bat_soc_pbar);
 
 	w = gtk_frame_new("Start Charge Threshold");
+	gtk_widget_set_margin_end(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
@@ -481,6 +484,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_box_append(GTK_BOX(c), w);
 
 	w = gtk_frame_new("End Charge Threshold");
+	gtk_widget_set_margin_end(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
@@ -511,6 +515,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_box_append(GTK_BOX(c), lc_app->bat_undo_btn);
 	lc_app->bat_apply_btn = gtk_button_new_from_icon_name("emblem-ok-symbolic");
 	gtk_widget_set_sensitive(lc_app->bat_apply_btn, false);
+	gtk_widget_set_margin_end(lc_app->bat_apply_btn, 3);
     g_signal_connect (lc_app->bat_apply_btn, "clicked", G_CALLBACK (bat_thres_apply_clicked), lc_app);
 	gtk_box_append(GTK_BOX(c), lc_app->bat_apply_btn);
 
@@ -530,6 +535,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_box_append(GTK_BOX(box), c);
 	w = gtk_button_new_with_label("Stop charge now!");
+	gtk_widget_set_margin_bottom(w, 3);
 	gtk_widget_set_tooltip_text(w, "Will stop charging immediately.");
     if (!lc_app->is_root) {
         gtk_widget_set_sensitive(w, false);
@@ -547,11 +553,12 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_stack_add_titled(GTK_STACK(stack), box, "CPU", "CPU");
 
 	w = gtk_frame_new("Long Term");
+	gtk_widget_set_margin_end(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
+	gtk_widget_set_margin_top(w, 3);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
 	w = gtk_label_new("PL1");
-    // gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
 	gtk_box_append(GTK_BOX(c), w);
     lc_app->cpu_pl1_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 20., 1);
     gtk_scale_set_draw_value (GTK_SCALE(lc_app->cpu_pl1_slider), true);
@@ -567,11 +574,11 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_box_append(GTK_BOX(c), w);
 
 	w = gtk_frame_new("Short Term");
+	gtk_widget_set_margin_end(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
 	w = gtk_label_new("PL2");
-    // gtk_image_set_icon_size(GTK_IMAGE(w), GTK_ICON_SIZE_LARGE);
 	gtk_box_append(GTK_BOX(c), w);
     lc_app->cpu_pl2_slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0., 35., 1);
     gtk_scale_set_draw_value (GTK_SCALE(lc_app->cpu_pl2_slider), true);
@@ -607,6 +614,8 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_stack_add_titled(GTK_STACK(stack), box, "LEDs", "LEDs");
 
 	w = gtk_frame_new("Keyboard Backlight");
+	gtk_widget_set_margin_end(w, 3);
+	gtk_widget_set_margin_top(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
@@ -621,6 +630,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_box_append(GTK_BOX(c), w);
 
 	w = gtk_frame_new("WiFi / BT");
+	gtk_widget_set_margin_end(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
 	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_frame_set_child(GTK_FRAME(w), c);
@@ -640,6 +650,12 @@ void create_main_window (lcontrol_app_t *lc_app)
     g_signal_connect (lc_app->rfkill_tbtn2, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
     g_signal_connect (lc_app->rfkill_tbtn3, "toggled", G_CALLBACK (led_rfkill_toggled), lc_app);
 
+	w = gtk_frame_new("Notification");
+	gtk_widget_set_margin_end(w, 3);
+	gtk_box_append(GTK_BOX(box), w);
+	c = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
+	gtk_frame_set_child(GTK_FRAME(w), c);
+
 	//
 	// Info page
 	//
@@ -647,6 +663,8 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_stack_add_titled(GTK_STACK(stack), box, "Info", "Info");
 
 	w = gtk_frame_new("DMI");
+	gtk_widget_set_margin_end(w, 3);
+	gtk_widget_set_margin_top(w, 3);
 	gtk_box_append(GTK_BOX(box), w);
     c = gtk_grid_new();
     gtk_grid_set_row_spacing(GTK_GRID(c), 1);
@@ -691,6 +709,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 
 	if (lc_app->is_root) {
 		w = gtk_frame_new("EC");
+		gtk_widget_set_margin_end(w, 3);
 		gtk_box_append(GTK_BOX(box), w);
 	    c = gtk_grid_new();
 	    gtk_grid_set_row_spacing(GTK_GRID(c), 1);
