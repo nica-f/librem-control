@@ -523,6 +523,7 @@ void create_main_window (lcontrol_app_t *lc_app)
 	gtk_widget_set_margin_end(lc_app->bat_soc_pbar, 3);
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), true);
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(lc_app->bat_soc_pbar), lc_app->bat_soc / 100.);
+	gtk_widget_set_margin_bottom(lc_app->bat_soc_pbar, 3);
 	gtk_box_append(GTK_BOX(c), lc_app->bat_soc_pbar);
 
 	w = gtk_frame_new("Start Charge Threshold");
