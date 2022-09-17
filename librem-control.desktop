@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Librem-Control
+GenericName=Librem-Control
+Comment=Control settings of Librem laptops
+Comment[de]=Einstellung für Librem Laptops verwalten
+Icon=librem-control
+StartupNotify=false
+Terminal=false
+Exec=pkexec /usr/bin/librem-control
+Categories=GTK;GNOME;Utility;
+Keywords=librem;
