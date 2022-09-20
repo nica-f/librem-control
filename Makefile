@@ -18,7 +18,8 @@ install:
 	install -D $(PRG) $(DESTDIR)$(PREFIX)/bin/$(PRG)
 	install -D org.freedesktop.policykit.librem-control.policy $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.freedesktop.policykit.librem-control.policy
 	install -D librem-control.desktop $(DESTDIR)$(PREFIX)/$(prefix)/share/applications/librem-control.desktop
-	install -D librem-control.svg $(DESTDIR)$(PREFIX)/$(prefix)/share/icons/hicolor/scalable/apps/librem-control.svg
+	install -D data/icons/sm.puri.Librem-Control.svg $(DESTDIR)$(PREFIX)/$(prefix)/share/icons/hicolor/scalable/apps/sm.puri.Librem-Control.svg
+	install -D data/icons/sm.puri.Librem-Control-symbolic.svg $(DESTDIR)$(PREFIX)/$(prefix)/share/icons/hicolor/symbolic/apps/sm.puri.Librem-Control-symbolic.svg
 
 deb:
 	fakeroot debian/rules binary
