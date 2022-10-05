@@ -18,6 +18,7 @@ Depends:
 	${shlibs:Depends},
 	${misc:Depends},
 	dmidecode,
+	pkexec,
 Description: Librem 14 control
  Controls some system settings of Librem 14 devices:
   - Charge thresholds
