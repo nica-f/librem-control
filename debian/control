@@ -18,7 +18,6 @@ Depends:
 	${shlibs:Depends},
 	${misc:Depends},
 	dmidecode,
-	libc6,
 Description: Librem 14 control
  Controls some system settings of Librem 14 devices:
   - Charge thresholds
