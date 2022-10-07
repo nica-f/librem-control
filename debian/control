@@ -18,7 +18,7 @@ Depends:
 	${shlibs:Depends},
 	${misc:Depends},
 	dmidecode,
-	pkexec,
+	pkexec | policykit-1 (<< 0.105-33~),
 Description: Librem 14 control
  Controls some system settings of Librem 14 devices:
   - Charge thresholds
