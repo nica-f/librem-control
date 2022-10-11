@@ -1,0 +1,8 @@
+ec-tool.o
+librem-control
+librem-control.o
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/librem-control/
+debian/librem-control.substvars
