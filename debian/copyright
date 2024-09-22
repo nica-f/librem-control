@@ -1,41 +1,20 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: librem-control
-Upstream-Contact: https://source.puri.sm/nicole.faerber/librem-control/-/issues
-Source: https://source.puri.sm/nicole.faerber/librem-control
+Upstream-Contact: https://github.com/nica-f/librem-control/issues
+Source: https://github.com/nica-f/librem-control/issues
 
 Files: *
-Copyright: 2022 Nicole Faerber
+Copyright: 
+  2022-2024 Nicole Faerber
 License: GPL-2
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License version 2 as
- published by the Free Software Foundation.
- .
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- .
- You should have received a copy of the GNU General Public License
- along with this program. If not, see <http://www.gnu.org/licenses/>
- .
- On Debian systems, the complete text of the GNU General
- Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
 
 Files: debian/*
-Copyright: 2022 João Azevedo <joao.azevedo@puri.sm>
+Copyright: 
+  2022 João Azevedo <joao.azevedo@puri.sm>
+  2022 Guido Günther <agx@sigxcpu.org>
+  2024 Maryjane <maryjane@disroot.org>
 License: GPL-2+
- This package is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
- (at your option) any later version.
- .
- This package is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- .
- You should have received a copy of the GNU General Public License
- along with this program. If not, see <https://www.gnu.org/licenses/>
- .
- On Debian systems, the complete text of the GNU General
- Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+License: GPL-2
+License-Reference: /usr/share/common-licenses/GPL-2
+

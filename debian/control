@@ -7,9 +7,9 @@ Build-Depends:
 	pkg-config,
 	libgtk-4-dev,
 Standards-Version: 4.5.1
-Homepage: https://source.puri.sm/nicole.faerber/librem-control
-Vcs-Browser: https://source.puri.sm/nicole.faerber/librem-control
-Vcs-Git: https://source.puri.sm/nicole.faerber/librem-control.git
+Homepage: https://github.com/nica-f/librem-control
+Vcs-Browser: https://github.com/nica-f/librem-control
+Vcs-Git: https://github.com/nica-f/librem-control.git
 Rules-Requires-Root: no
 
 Package: librem-control
